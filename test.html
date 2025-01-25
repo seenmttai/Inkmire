@@ -1,0 +1,324 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Portfolio Builder</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.6.347/pdf.min.js"></script>
+    <script src="https://unpkg.com/react@17/umd/react.development.js"></script>
+    <script src="https://unpkg.com/react-dom@17/umd/react-dom.development.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <link href="https://unpkg.com/aos@2.3.1/dist/aos.css" rel="stylesheet">
+    <script src="https://unpkg.com/aos@2.3.1/dist/aos.js"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap');
+
+        * {
+            font-family: 'Poppins', sans-serif;
+        }
+
+        .glassmorphic {
+            background: rgba(255, 255, 255, 0.15);
+            backdrop-filter: blur(20px);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            box-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.15);
+        }
+
+        .animate-gradient {
+            background-size: 200% 200%;
+            animation: gradient 15s ease infinite;
+        }
+
+        @keyframes gradient {
+            0% {
+                background-position: 0% 50%;
+            }
+
+            50% {
+                background-position: 100% 50%;
+            }
+
+            100% {
+                background-position: 0% 50%;
+            }
+        }
+
+        .hover-3d {
+            transition: transform 0.3s ease;
+            transform-style: preserve-3d;
+        }
+
+        .hover-3d:hover {
+            transform: translateY(-5px) rotateX(5deg);
+        }
+
+        .rotate {
+            animation: rotate 2s infinite linear;
+        }
+
+        @keyframes rotate {
+            from {
+                transform: rotate(0deg);
+            }
+
+            to {
+                transform: rotate(360deg);
+            }
+        }
+    </style>
+</head>
+
+<body class="min-h-screen animate-gradient bg-gradient-to-br from-indigo-500 via-purple-500 to-pink-500">
+    <div class="max-w-4xl mx-auto p-8">
+        <div class="glassmorphic rounded-3xl shadow-2xl p-8 border border-white/20">
+            <div class="flex items-center gap-4 mb-8">
+                <div
+                    class="hover-3d w-14 h-14 bg-gradient-to-br from-indigo-600 to-purple-600 rounded-2xl flex items-center justify-center shadow-lg">
+                    <i class="fas fa-file-code text-2xl text-white"></i>
+                </div>
+                <h1 class="text-4xl font-bold text-white">
+                    Portfolio Builder
+                    <span class="block text-sm font-normal text-white/70 mt-1">Transform your CV into a stunning website</span>
+                </h1>
+            </div>
+            <div id="cv-reviewer-app"></div>
+            <div class="mt-6 text-center text-white/70">
+                <p>Upload your CV (PDF) to generate a personalized portfolio.</p>
+                <p class="mt-2 text-sm text-white/70">This tool is designed to convert your CV into an interactive online
+                    presence.</p>
+            </div>
+        </div>
+    </div>
+    <script>
+        AOS.init({
+            duration: 1000,
+            once: true
+        });
+    </script>
+    <script type="text/babel">
+        const initializePdfJs = () => {
+            if (typeof pdfjsLib !== 'undefined') {
+                pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.6.347/pdf.worker.min.js';
+                return true;
+            }
+            return false;
+        };
+
+        const UploadButton = ({ loading, disabled, onFileSelect }) => {
+            const handleFileSelect = event => {
+                if (event.target.files[0]) {
+                    onFileSelect(event.target.files[0]);
+                }
+            };
+
+             const handleDragOver = (event) => {
+                event.preventDefault();
+             };
+              const handleDrop = (event) => {
+                event.preventDefault();
+                  if(event.dataTransfer.files && event.dataTransfer.files[0] && event.dataTransfer.files[0].type === "application/pdf"){
+                    onFileSelect(event.dataTransfer.files[0]);
+                }
+
+             };
+
+            return (
+                <div className="flex flex-col items-center justify-center w-full gap-4" onDragOver={handleDragOver} onDrop={handleDrop}>
+                    <label htmlFor="cv-file"
+                        className={`group relative flex items-center justify-center gap-3 px-8 py-4 text-white transition-all duration-300 bg-gradient-to-r from-indigo-500 to-purple-500 rounded-xl cursor-pointer ${disabled ? 'opacity-50 cursor-not-allowed' : 'hover:scale-105'} shadow-lg hover:shadow-purple-200`}>
+                        <i className={`fas ${loading ? 'fa-spinner fa-spin rotate' : 'fa-cloud-upload-alt'} text-xl`}></i>
+                        <span className="text-lg font-medium">{loading ? 'Processing...' : 'Upload CV (PDF)'}</span>
+                        <input type="file" id="cv-file" accept=".pdf" onChange={handleFileSelect} disabled={loading || disabled}
+                            className="hidden" />
+                    </label>
+                    {loading && (
+                        <div className="w-8 h-8 border-4 border-purple-500 rounded-full border-t-transparent rotate" />
+                    )}
+                    <p className="mt-2 text-sm text-white/70">or drag and drop your PDF here</p>
+                </div>
+            );
+        };
+
+        const CVReviewer = () => {
+            const [loading, setLoading] = React.useState(false);
+            const [portfolioHtml, setPortfolioHtml] = React.useState(null);
+            const [error, setError] = React.useState(null);
+            const [pdfReady, setPdfReady] = React.useState(false);
+            const previewRef = React.useRef(null);
+            const [isPro, setIsPro] = React.useState(false);
+
+            React.useEffect(() => {
+                const checkPdfJs = () => {
+                    if (initializePdfJs()) {
+                        setPdfReady(true);
+                        return true;
+                    }
+                    return false;
+                };
+
+                if (!checkPdfJs()) {
+                    const interval = setInterval(() => {
+                        if (checkPdfJs()) {
+                            clearInterval(interval);
+                        }
+                    }, 1000);
+
+                    return () => clearInterval(interval);
+                }
+            }, []);
+
+            const processFile = async file => {
+                if (!pdfReady) {
+                    console.error('PDF.js is still loading. Please wait a moment and try again.');
+                    setError('PDF.js is still loading. Please wait a moment and try again.');
+                    return;
+                }
+
+                try {
+                    setLoading(true);
+                    setError(null);
+                    setPortfolioHtml(null);
+                    const arrayBuffer = await file.arrayBuffer();
+                    const pdf = await pdfjsLib.getDocument({
+                        data: arrayBuffer
+                    }).promise;
+
+                    const images = [];
+                    for (let i = 1; i <= pdf.numPages; i++) {
+                        const page = await pdf.getPage(i);
+                        const viewport = page.getViewport({
+                            scale: 1.5
+                        });
+                        const canvas = document.createElement('canvas');
+                        const context = canvas.getContext('2d');
+                        canvas.height = viewport.height;
+                        canvas.width = viewport.width;
+                        const renderContext = {
+                            canvasContext: context,
+                            viewport: viewport,
+                        };
+                        await page.render(renderContext).promise;
+                        const imageData = canvas.toDataURL('image/jpeg');
+                        images.push({
+                            data: imageData.split(',')[1],
+                            mime_type: 'image/jpeg'
+                        });
+                    }
+                    const workerUrl = 'https://aid101.deno.dev/';
+                    const apiResponse = await fetch(workerUrl, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'Accept': 'application/json'
+                        },
+                        body: JSON.stringify({
+                            promptType: 'createPortfolio',
+                            images: images,
+                            model: isPro ? 'gemini-exp-1206' : 'gemini-2.0-flash-exp'
+                        })
+                    });
+                    console.log('API Response:', apiResponse);
+                    if (!apiResponse.ok) {
+                        const errorText = await apiResponse.text();
+                        console.error('API Error Response:', errorText);
+                        throw new Error(errorText || 'API request failed');
+                    }
+                    const data = await apiResponse.json();
+                    console.log('API Response Data:', data);
+                    if (!data.candidates || data.candidates.length === 0) {
+                        throw new Error('API overloaded. Wait 2 minutes and try again.');
+                    }
+                    const responseText = data.candidates[0].content.parts[0].text;
+                    console.log('API Response Text:', responseText);
+                    const htmlStartMatch = responseText.match(/<html.*?>/);
+                    const htmlEndMatch = responseText.match(/<\/html>/);
+                    if (htmlStartMatch && htmlEndMatch) {
+                        const htmlStart = htmlStartMatch.index;
+                        const htmlEnd = htmlEndMatch.index + htmlEndMatch[0].length;
+                        const extractedHtml = responseText.substring(htmlStart, htmlEnd);
+                        console.log('Extracted HTML:', extractedHtml);
+                        setPortfolioHtml(extractedHtml);
+                    } else {
+                        console.error('Could not extract HTML from response. <html> or </html> tags not found.');
+                        setError('Could not extract HTML from response. <html> or </html> tags not found.');
+                    }
+                } catch (err) {
+                    console.error('Error:', err);
+                    setError(err.message);
+                } finally {
+                    setLoading(false);
+                }
+            };
+
+            const handleDownload = () => {
+                if (portfolioHtml) {
+                    const blob = new Blob([portfolioHtml], {
+                        type: 'text/html'
+                    });
+                    const link = document.createElement('a');
+                    link.href = URL.createObjectURL(blob);
+                    link.download = 'portfolio.html';
+                    link.click();
+                }
+            };
+
+            React.useEffect(() => {
+                if (portfolioHtml && previewRef.current) {
+                    const iframe = previewRef.current;
+                    iframe.srcdoc = portfolioHtml;
+                }
+            }, [portfolioHtml]);
+
+            return (
+                <div className="space-y-8">
+                   <div className="flex items-center justify-center space-x-4">
+                       <button
+                          onClick={() => setIsPro(false)}
+                           className={`py-2 px-4 rounded-lg transition-colors duration-300 ${!isPro ? 'bg-purple-600 text-white' : 'bg-gray-300 text-gray-700'}`}
+                       >
+                           Standard
+                        </button>
+                        <button
+                           onClick={() => setIsPro(true)}
+                           className={`py-2 px-4 rounded-lg transition-colors duration-300 ${isPro ? 'bg-purple-600 text-white' : 'bg-gray-300 text-gray-700'}`}
+                       >
+                           Pro
+                       </button>
+                    </div>
+                    <div
+                        className="p-6 border-2 border-dashed border-purple-200 rounded-xl bg-white/50 backdrop-blur transition-all duration-300 hover:border-purple-300">
+                        {!pdfReady && <div className="text-center text-white/70">Loading PDF processor...</div>}
+                        {pdfReady && (
+                            <UploadButton loading={loading} disabled={!pdfReady || loading} onFileSelect={processFile} />
+                        )}
+                        {error && (
+                            <div className="mt-4 p-4 bg-red-50 border border-red-200 rounded-lg text-red-600">
+                                <i className="fas fa-exclamation-circle mr-2"></i> {error}
+                            </div>
+                        )}
+                    </div>
+                    {portfolioHtml && (
+                        <div className="space-y-4">
+                            <div className="bg-white rounded-xl shadow-lg overflow-hidden">
+                                <iframe ref={previewRef} className="w-full h-[600px] border-0"
+                                    title="Portfolio Preview"></iframe>
+                            </div>
+                            <button onClick={handleDownload}
+                                className="w-full py-4 px-6 bg-gradient-to-r from-indigo-500 to-purple-500 text-white rounded-xl shadow-lg hover:shadow-purple-200 transition-all duration-300 hover:scale-105 flex items-center justify-center gap-2">
+                                <i className="fas fa-download"></i>
+                                Download Portfolio
+                            </button>
+                        </div>
+                    )}
+                </div>
+            );
+        };
+
+        ReactDOM.render(<CVReviewer />, document.getElementById('cv-reviewer-app'));
+    </script>
+</body>
+
+</html>
