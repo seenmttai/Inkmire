@@ -234,7 +234,7 @@
                     const responseText = data.candidates[0].content.parts[0].text;
                     console.log('API Response Text:', responseText);
                     const htmlStartMatch = responseText.match(/<html.*?>/);
-                    const htmlEndMatch = responseText.match(/<\/html>/);
+                    const htmlEndMatch = responseText.match(/<\/html>/) || responseText.slice(-1);
                     if (htmlStartMatch && htmlEndMatch) {
                         const htmlStart = htmlStartMatch.index;
                         const htmlEnd = htmlEndMatch.index + htmlEndMatch[0].length;
